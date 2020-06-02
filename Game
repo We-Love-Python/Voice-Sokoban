@@ -274,8 +274,8 @@ def runGame(screen, game_level):
 			# 识别test.wav语音内容并显示
 				print(bdr.getText("test.wav"))
 				order = bdr.getText("test.wav")
-				elif order == None:
-					pass	
+				if order == None:
+					break	
 				elif order[0].strip("。") == "退出":
 					quitGame()
 				else:
