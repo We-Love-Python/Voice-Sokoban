@@ -259,7 +259,9 @@ def runGame(screen, game_level):
 	text_render = font.render(text, 1, (255, 255, 255))
 	print("start...............")
 	while True:
-		for event in pygame.event.get():
+		n = 1000000000
+		for i in range(n):
+			n += 100
 			if __name__ == "__main__":
 				r = recoder()
 				r.recoder()
@@ -272,8 +274,6 @@ def runGame(screen, game_level):
 			# 识别test.wav语音内容并显示
 				print(bdr.getText("test.wav"))
 				order = bdr.getText("test.wav")
-				if event.type == pygame.QUIT:
-					quitGame()
 				elif order == None:
 					pass	
 				elif order[0].strip("。") == "退出":
