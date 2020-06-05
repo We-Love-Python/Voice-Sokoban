@@ -270,7 +270,6 @@ def runGame(screen, game_level):
 				api_secert = "VvWUNzKqnmbeEdBlnpOqqDvtrhTSEgzf"
 			# 初始化
 				bdr = BaiduRest("test_python", api_key, api_secert)
-			# 将字符串语音合成并保存为out.mp3
 			# 识别test.wav语音内容并显示
 				print(bdr.getText("test.wav"))
 				order = bdr.getText("test.wav")
