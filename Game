@@ -254,10 +254,10 @@ def runGame(screen, game_level):
 	game_interface = gameInterface(screen)
 	game_interface.loadLevel(game_level)
 	font_path = os.path.join(Config.get('resources_path'), Config.get('fontfolder'), 'simkai.ttf')
-	text = '按R键重新开始本关'
+	text = '说“重新开始”重新开始本关'
 	font = pygame.font.Font(font_path, 15)
 	text_render = font.render(text, 1, (255, 255, 255))
-	print("start...............")
+	# print("start...............")
 	while True:
 		n = 1000000000
 		for i in range(n):
