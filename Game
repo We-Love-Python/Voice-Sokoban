@@ -236,16 +236,16 @@ class gameInterface():
 		height = self.game_surface.get_rect().h
 		if (x + Config.get('WIDTH') // 2) > Config.get('WIDTH'):
 			if -1 * self.scroll_x + Config.get('WIDTH') < width:
-				self.scroll_x -= 2
+				self.scroll_x -= 40
 		elif (x + Config.get('WIDTH') // 2) > 0:
 			if self.scroll_x < 0:
-				self.scroll_x += 2
+				self.scroll_x += 40
 		if (y + Config.get('HEIGHT') // 2) > Config.get('HEIGHT'):
 			if -1 * self.scroll_y + Config.get('HEIGHT') < height:
-				self.scroll_y -= 2
+				self.scroll_y -= 40
 		elif (y + 250) > 0:
 			if self.scroll_y < 0:
-				self.scroll_y += 2
+				self.scroll_y += 40
 
 
 '''某一关卡的游戏主循环'''
