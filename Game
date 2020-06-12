@@ -84,9 +84,9 @@ class BaiduRest:
 		# token认证的url
 		self.token_url = "https://openapi.baidu.com/oauth/2.0/token?grant_type=client_credentials&client_id=%s&client_secret=%s"
 		# 语音合成的resturl
-		self.getvoice_url = "http://tsn.baidu.com/text2audio?tex=%s&lan=zh&cuid=%s&ctp=1&tok=%s"
+		self.getvoice_url = "https://tsn.baidu.com/text2audio?tex=%s&lan=zh&cuid=%s&ctp=1&tok=%s"
 		# 语音识别的resturl
-		self.upvoice_url = 'http://vop.baidu.com/server_api'
+		self.upvoice_url = 'https://vop.baidu.com/server_api'
 
 		self.cu_id = cu_id
 		self.getToken(api_key, api_secert)
