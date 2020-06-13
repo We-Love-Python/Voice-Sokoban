@@ -1,0 +1,12 @@
+Pyaudio
+numpy
+datetime
+wave
+urllib
+urllib.request
+json
+base64
+pygame
+os
+sys
+itertools

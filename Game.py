@@ -1,0 +1,435 @@
+from pyaudio import PyAudio, paInt16 
+import numpy as np 
+from datetime import datetime 
+import wave
+
+class recoder:
+	NUM_SAMPLES = 2000      #pyaudio内置缓冲大小
+	SAMPLING_RATE = 8000    #取样频率
+	LEVEL = 500         #声音保存的阈值
+	COUNT_NUM = 20      #NUM_SAMPLES个取样之内出现COUNT_NUM个大于LEVEL的取样则记录声音
+	SAVE_LENGTH = 8         #声音记录的最小长度：SAVE_LENGTH * NUM_SAMPLES 个取样
+	TIME_COUNT = 10     #录音时间，单位s
+
+	Voice_String = []
+
+	def savewav(self,filename):
+		wf = wave.open(filename, 'wb') 
+		wf.setnchannels(1) 
+		wf.setsampwidth(2) 
+		wf.setframerate(self.SAMPLING_RATE) 
+		wf.writeframes(np.array(self.Voice_String).tostring()) 
+		# wf.writeframes(self.Voice_String.decode())
+		wf.close() 
+
+	def recoder(self):
+		pa = PyAudio() 
+		stream = pa.open(format=paInt16, channels=1, rate=self.SAMPLING_RATE, input=True, 
+			frames_per_buffer=self.NUM_SAMPLES) 
+		save_count = 0 
+		save_buffer = [] 
+		time_count = self.TIME_COUNT
+
+		while True:
+			time_count -= 1
+			# print time_count
+			# 读入NUM_SAMPLES个取样
+			string_audio_data = stream.read(self.NUM_SAMPLES) 
+			# 将读入的数据转换为数组
+			audio_data = np.fromstring(string_audio_data, dtype=np.short)
+			# 计算大于LEVEL的取样的个数
+			large_sample_count = np.sum( audio_data > self.LEVEL )
+			#print(np.max(audio_data))
+			# 如果个数大于COUNT_NUM，则至少保存SAVE_LENGTH个块
+			if large_sample_count > self.COUNT_NUM:
+				save_count = self.SAVE_LENGTH 
+			else: 
+				save_count -= 1
+
+			if save_count < 0:
+				save_count = 0 
+
+			if save_count > 0 : 
+			# 将要保存的数据存放到save_buffer中
+				#print  save_count > 0 and time_count >0
+				save_buffer.append( string_audio_data ) 
+			else: 
+			#print save_buffer
+			# 将save_buffer中的数据写入WAV文件，WAV文件的文件名是保存的时刻
+				#print "debug"
+				if len(save_buffer) > 0 : 
+					self.Voice_String = save_buffer
+					save_buffer = [] 
+					print("Recode a piece of  voice successfully!")
+					return True
+			if time_count==0: 
+				if len(save_buffer)>0:
+					self.Voice_String = save_buffer
+					save_buffer = [] 
+					print("Recode a piece of  voice successfully!")
+					return True
+				else:
+					return False
+
+
+
+
+import urllib.request
+import urllib
+import json
+import base64
+
+class BaiduRest:
+	def __init__(self, cu_id, api_key, api_secert):
+		# token认证的url
+		self.token_url = "https://openapi.baidu.com/oauth/2.0/token?grant_type=client_credentials&client_id=%s&client_secret=%s"
+		# 语音合成的resturl
+		self.getvoice_url = "https://tsn.baidu.com/text2audio?tex=%s&lan=zh&cuid=%s&ctp=1&tok=%s"
+		# 语音识别的resturl
+		self.upvoice_url = 'https://vop.baidu.com/server_api'
+
+		self.cu_id = cu_id
+		self.getToken(api_key, api_secert)
+		return
+
+	def getToken(self, api_key, api_secert):
+		# 1.获取token
+		token_url = self.token_url % (api_key,api_secert)
+		r_str = urllib.request.urlopen(token_url).read()
+		token_data = json.loads(r_str)
+		self.token_str = token_data['access_token']
+		pass
+	def getText(self, filename):
+		# 2. 向Rest接口提交数据
+		data = {}
+		# 语音的一些参数
+		data['format'] = 'wav'
+		data['rate'] = 8000
+		data['channel'] = 1
+		data['cuid'] = self.cu_id
+		data['token'] = self.token_str
+		wav_fp = open(filename,'rb')
+		voice_data = wav_fp.read()
+		data['len'] = len(voice_data)
+		data['speech'] = base64.b64encode(voice_data).decode('utf-8')
+		post_data = json.dumps(data)
+		r_data = urllib.request.urlopen(self.upvoice_url,data=bytes(post_data,encoding="utf-8")).read()
+		# 3.处理返回数据
+		print("r_data:",r_data)
+		if "result" in bytes.decode(r_data):
+			return json.loads(r_data)['result']
+
+
+
+
+
+import os
+import sys
+import pygame
+from Sprites import *
+from config import Config
+from itertools import chain
+
+
+'''退出游戏'''
+def quitGame():
+	pygame.quit()
+	sys.exit(0)
+
+
+'''游戏地图'''
+class gameMap():
+	def __init__(self, num_cols, num_rows):
+		self.walls = []
+		self.boxes = []
+		self.targets = []
+		self.num_cols = num_cols
+		self.num_rows = num_rows
+	'''增加游戏元素'''
+	def addElement(self, elem_type, col, row):
+		if elem_type == 'wall':
+			self.walls.append(elementSprite('wall.png', col, row))
+		elif elem_type == 'box':
+			self.boxes.append(elementSprite('box.png', col, row))
+		elif elem_type == 'target':
+			self.targets.append(elementSprite('target.png', col, row))
+	'''画游戏地图'''
+	def draw(self, screen):
+		for elem in self.elemsIter():
+			elem.draw(screen)
+	'''游戏元素迭代器'''
+	def elemsIter(self):
+		for elem in chain(self.targets, self.walls, self.boxes):
+			yield elem
+	'''该关卡中所有的箱子是否都在指定位置, 在的话就是通关了'''
+	def levelCompleted(self):
+		for box in self.boxes:
+			is_match = False
+			for target in self.targets:
+				if box.col == target.col and box.row == target.row:
+					is_match = True
+					break
+			if not is_match:
+				return False
+		return True
+	'''某位置是否可到达'''
+	def isValidPos(self, col, row):
+		if col >= 0 and row >= 0 and col < self.num_cols and row < self.num_rows:
+			block_size = Config.get('block_size')
+			temp1 = self.walls + self.boxes
+			temp2 = pygame.Rect(col * block_size, row * block_size, block_size, block_size)
+			return temp2.collidelist(temp1) == -1
+		else:
+			return False
+	'''获得某位置的box'''
+	def getBox(self, col, row):
+		for box in self.boxes:
+			if box.col == col and box.row == row:
+				return box
+		return None
+
+
+'''游戏界面'''
+class gameInterface():
+	def __init__(self, screen):
+		self.screen = screen
+		self.levels_path = Config.get('levels_path')
+		self.initGame()
+	'''导入关卡地图'''
+	def loadLevel(self, game_level):
+		with open(os.path.join(self.levels_path, game_level), 'r') as f:
+			lines = f.readlines()
+		# 游戏地图
+		self.game_map = gameMap(max([len(line) for line in lines]) - 1, len(lines))
+		# 游戏surface
+		height = Config.get('block_size') * self.game_map.num_rows
+		width = Config.get('block_size') * self.game_map.num_cols
+		self.game_surface = pygame.Surface((width, height))
+		self.game_surface.fill(Config.get('bg_color'))
+		self.game_surface_blank = self.game_surface.copy()
+		for row, elems in enumerate(lines):
+			for col, elem in enumerate(elems):
+				if elem == 'p':
+					self.player = pusherSprite(col, row)
+				elif elem == '*':
+					self.game_map.addElement('wall', col, row)
+				elif elem == '#':
+					self.game_map.addElement('box', col, row)
+				elif elem == 'o':
+					self.game_map.addElement('target', col, row)
+	'''游戏初始化'''
+	def initGame(self):
+		self.scroll_x = 0
+		self.scroll_y = 0
+	'''将游戏界面画出来'''
+	def draw(self, *elems):
+		self.scroll()
+		self.game_surface.blit(self.game_surface_blank, dest=(0, 0))
+		for elem in elems:
+			elem.draw(self.game_surface)
+		self.screen.blit(self.game_surface, dest=(self.scroll_x, self.scroll_y))
+	'''因为游戏界面面积>游戏窗口界面, 所以需要根据人物位置滚动'''
+	def scroll(self):
+		x, y = self.player.rect.center
+		width = self.game_surface.get_rect().w
+		height = self.game_surface.get_rect().h
+		if (x + Config.get('WIDTH') // 2) > Config.get('WIDTH'):
+			if -1 * self.scroll_x + Config.get('WIDTH') < width:
+				self.scroll_x -= 40
+		elif (x + Config.get('WIDTH') // 2) > 0:
+			if self.scroll_x < 0:
+				self.scroll_x += 40
+		if (y + Config.get('HEIGHT') // 2) > Config.get('HEIGHT'):
+			if -1 * self.scroll_y + Config.get('HEIGHT') < height:
+				self.scroll_y -= 40
+		elif (y + 250) > 0:
+			if self.scroll_y < 0:
+				self.scroll_y += 40
+
+
+'''某一关卡的游戏主循环'''
+def runGame(screen, game_level):
+	clock = pygame.time.Clock()
+	game_interface = gameInterface(screen)
+	game_interface.loadLevel(game_level)
+	font_path = os.path.join(Config.get('resources_path'), Config.get('fontfolder'), 'simkai.ttf')
+	text = '说“重新开始”重新开始本关'
+	font = pygame.font.Font(font_path, 15)
+	text_render = font.render(text, 1, (255, 255, 255))
+	#print("start...............")
+	while True:
+		n = 1000000000
+		for i in range(n):
+			n += 100
+			if __name__ == "__main__":
+				r = recoder()
+				r.recoder()
+				r.savewav("test.wav")
+				api_key = "Xqr9fzeCt5IeQ8QaIr8oGb47" 
+				api_secert = "VvWUNzKqnmbeEdBlnpOqqDvtrhTSEgzf"
+			# 初始化
+				bdr = BaiduRest("test_python", api_key, api_secert)
+			# 识别test.wav语音内容并显示
+				order = bdr.getText("test.wav")
+				print(order)
+				if order == None:
+					break	
+				elif order[0].strip("。") == "退出":
+					quitGame()
+				else:
+					if order[0].strip("。") == "向左走":
+						next_pos = game_interface.player.move('left', is_test=True)
+						if game_interface.game_map.isValidPos(*next_pos):
+							game_interface.player.move('left')
+						else:
+							box = game_interface.game_map.getBox(*next_pos)
+							if box:
+								next_pos = box.move('left', is_test=True)
+								if game_interface.game_map.isValidPos(*next_pos):
+									game_interface.player.move('left')
+									box.move('left')
+						break
+					if order[0].strip("。") == "向右走":
+						next_pos = game_interface.player.move('right', is_test=True)
+						if game_interface.game_map.isValidPos(*next_pos):
+							game_interface.player.move('right')
+						else:
+							box = game_interface.game_map.getBox(*next_pos)
+							if box:
+								next_pos = box.move('right', is_test=True)
+								if game_interface.game_map.isValidPos(*next_pos):
+									game_interface.player.move('right')
+									box.move('right')
+						break
+					if order[0].strip("。") == "向下走":
+						next_pos = game_interface.player.move('down', is_test=True)
+						if game_interface.game_map.isValidPos(*next_pos):
+							game_interface.player.move('down')
+						else:
+							box = game_interface.game_map.getBox(*next_pos)
+							if box:
+								next_pos = box.move('down', is_test=True)
+								if game_interface.game_map.isValidPos(*next_pos):
+									game_interface.player.move('down')
+									box.move('down')
+						break
+					if order[0].strip("。") == "向上走":
+						next_pos = game_interface.player.move('up', is_test=True)
+						if game_interface.game_map.isValidPos(*next_pos):
+							game_interface.player.move('up')
+						else:
+							box = game_interface.game_map.getBox(*next_pos)
+							if box:
+								next_pos = box.move('up', is_test=True)
+								if game_interface.game_map.isValidPos(*next_pos):
+									game_interface.player.move('up')
+									box.move('up')
+						break
+					if order[0].strip("。") == "重新开始":
+						game_interface.initGame()
+						game_interface.loadLevel(game_level)
+		game_interface.draw(game_interface.player, game_interface.game_map)
+		if game_interface.game_map.levelCompleted():
+			return
+		screen.blit(text_render, (5, 5))
+		pygame.display.flip()
+		clock.tick(200)
+
+
+'''定义按钮'''
+def BUTTON(screen, position, text):
+	bwidth = 310
+	bheight = 65
+	left, top = position
+	pygame.draw.line(screen, (150, 150, 150), (left, top), (left+bwidth, top), 5)
+	pygame.draw.line(screen, (150, 150, 150), (left, top-2), (left, top+bheight), 5)
+	pygame.draw.line(screen, (50, 50, 50), (left, top+bheight), (left+bwidth, top+bheight), 5)
+	pygame.draw.line(screen, (50, 50, 50), (left+bwidth, top+bheight), [left+bwidth, top], 5)
+	pygame.draw.rect(screen, (100, 100, 100), (left, top, bwidth, bheight))
+	font_path = os.path.join(Config.get('resources_path'), Config.get('fontfolder'), 'simkai.ttf')
+	font = pygame.font.Font(font_path, 50)
+	text_render = font.render(text, 1, (255, 0, 0))
+	return screen.blit(text_render, (left+50, top+10))
+
+
+'''开始界面'''
+def startInterface(screen):
+	screen.fill(Config.get('bg_color'))
+	clock = pygame.time.Clock()
+	while True:
+		button_1 = BUTTON(screen, (95, 150), '开始游戏')
+		button_2 = BUTTON(screen, (95, 305), '退出游戏')
+		for event in pygame.event.get():
+			if event.type == pygame.QUIT:
+				pygame.quit()
+				sys.exit()
+			if event.type == pygame.MOUSEBUTTONDOWN:
+				if button_1.collidepoint(pygame.mouse.get_pos()):
+					return
+				elif button_2.collidepoint(pygame.mouse.get_pos()):
+					quitGame()
+		clock.tick(60)
+		pygame.display.update()
+
+
+'''关卡切换界面'''
+def switchInterface(screen):
+	screen.fill(Config.get('bg_color'))
+	clock = pygame.time.Clock()
+	while True:
+		button_1 = BUTTON(screen, (95, 150), '进入下关')
+		button_2 = BUTTON(screen, (95, 305), '退出游戏')
+		for event in pygame.event.get():
+			if event.type == pygame.QUIT:
+				pygame.quit()
+				sys.exit()
+			if event.type == pygame.MOUSEBUTTONDOWN:
+				if button_1.collidepoint(pygame.mouse.get_pos()):
+					return
+				elif button_2.collidepoint(pygame.mouse.get_pos()):
+					quitGame()
+		clock.tick(60)
+		pygame.display.update()
+
+
+'''结束界面'''
+def endInterface(screen):
+	screen.fill(Config.get('bg_color'))
+	clock = pygame.time.Clock()
+	font_path = os.path.join(Config.get('resources_path'), Config.get('fontfolder'), 'simkai.ttf')
+	text = '机智如你~恭喜通关!'
+	font = pygame.font.Font(font_path, 30)
+	text_render = font.render(text, 1, (255, 255, 255))
+	while True:
+		for event in pygame.event.get():
+			if event.type == pygame.QUIT:
+				pygame.quit()
+				sys.exit()
+		screen.blit(text_render, (120, 200))
+		clock.tick(60)
+		pygame.display.update()
+
+
+'''主函数'''
+def main():
+	pygame.init()
+	pygame.mixer.init()
+	pygame.display.set_caption('Voice Sokoban')
+	screen = pygame.display.set_mode([Config.get('WIDTH'), Config.get('HEIGHT')])
+	pygame.mixer.init()
+	audio_path = os.path.join(Config.get('resources_path'), Config.get('audiofolder'), 'EineLiebe.mp3')
+	pygame.mixer.music.load(audio_path)
+	pygame.mixer.music.set_volume(0.2)
+	pygame.mixer.music.play(-1)
+	startInterface(screen)
+	levels_path = Config.get('levels_path')
+	for level_name in sorted(os.listdir(levels_path)):
+		runGame(screen, level_name)
+		switchInterface(screen)
+	endInterface(screen)
+
+
+'''run'''
+while True:
+	if __name__ == '__main__':
+		main()
